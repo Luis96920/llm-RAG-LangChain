@@ -10,8 +10,13 @@ from langchain.prompts import (
     HumanMessagePromptTemplate,
     ChatPromptTemplate,
 )
-# Import the output parser. This is used to parse the output from the chatbot.
+# Import modules to add reviews retriever to review_chain
 from langchain_core.output_parsers import StrOutputParser
+from langchain_community.vectorstores import Chroma
+from langchain_openai import OpenAIEmbeddings
+from langchain.schema.runnable import RunnablePassthrough
+
+REVIEWS_CHROMA_PATH = "chroma_data/"
 
 # Load the environment variables
 dotenv.load_dotenv()
@@ -57,5 +62,17 @@ chat_model = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0)
 # Chain the review prompt template and the chatbot to create a chatbot that can answer questions about patient reviews of hospitals.
 output_parser = StrOutputParser()
 
+reviews_vector_db = Chroma(
+    persist_directory=REVIEWS_CHROMA_PATH,
+    embedding_function=OpenAIEmbeddings()
+)
+
+reviews_retriever  = reviews_vector_db.as_retriever(k=10)
+
 # Chain the review prompt template, chatbot, and output parser. This creates a chatbot that can answer questions about patient reviews of hospitals.
-review_chain = review_prompt_template | chat_model | output_parser
+review_chain = (
+    {"context": reviews_retriever, "question": RunnablePassthrough()}
+    | review_prompt_template
+    | chat_model
+    | StrOutputParser()
+)
